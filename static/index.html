@@ -1,0 +1,2010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cape Cod by the Numbers</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #e8e8e8; }
+
+  #header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+    background: #16213e; border-bottom: 2px solid #0f3460;
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 12px; height: 52px;
+  }
+  #header h1 { font-size: 1.1rem; font-weight: 700; color: #e8e8e8; white-space: nowrap; }
+  #header h1 span { color: #4fc3f7; }
+  #menu-toggle {
+    display: none; background: none; border: none; cursor: pointer;
+    color: #e8e8e8; font-size: 1.4rem; padding: 4px 6px; margin-left: auto;
+  }
+
+  #map { position: fixed; top: 52px; left: 280px; right: 0; bottom: 0; z-index: 1; }
+
+  /* ── Sidebar ─────────────────────────────────────────── */
+  #sidebar {
+    position: fixed; top: 52px; left: 0; bottom: 0; width: 280px;
+    background: #16213e; border-right: 1px solid #0f3460;
+    overflow-y: auto; z-index: 500;
+    display: flex; flex-direction: column;
+  }
+
+  .panel { padding: 12px 14px 10px; border-bottom: 1px solid #0f3460; }
+  .panel-title {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: #4fc3f7; margin-bottom: 10px;
+  }
+
+  /* ── Layer rows ──────────────────────────────────────── */
+  .layer-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 0; border-bottom: 1px solid #1e2f50;
+  }
+  .layer-row:last-of-type, .layer-row.last { border-bottom: none; }
+  .layer-check { accent-color: #4fc3f7; width: 14px; height: 14px; flex-shrink: 0; cursor: pointer; }
+  .layer-label { cursor: pointer; flex: 1; }
+  .layer-name  { display: block; font-size: 0.76rem; color: #c8d8f0; }
+  .layer-src   { display: block; font-size: 0.62rem; color: #5a7a9a; }
+
+  /* ── Layer sub-controls (nested inside a layer) ──────── */
+  .layer-body { padding: 8px 0 4px 0; }
+
+  .sub-label {
+    font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.07em; color: #4a6a8a; margin: 8px 0 5px;
+  }
+  .sub-label:first-child { margin-top: 2px; }
+
+  /* Metric buttons */
+  .metric-group-label {
+    font-size: 0.60rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.07em; color: #405870; margin: 7px 0 3px;
+  }
+  .metric-group-label:first-child { margin-top: 0; }
+  .metric-btn {
+    background: none; border: 1px solid #2a3a5e; border-radius: 4px;
+    color: #b0c8e0; font-size: 0.73rem; padding: 5px 8px;
+    cursor: pointer; text-align: left; transition: all 0.15s;
+    display: block; width: 100%; margin-bottom: 3px;
+  }
+  .metric-btn:hover  { background: #1e2f50; border-color: #4fc3f7; }
+  .metric-btn.active { background: #0f3460; border-color: #4fc3f7; color: #fff; font-weight: 600; }
+
+  /* Geography toggle */
+  .level-toggle { display: flex; border: 1px solid #2a3a5e; border-radius: 4px; overflow: hidden; }
+  .level-btn {
+    flex: 1; background: none; border: none; color: #8ab; font-size: 0.74rem;
+    padding: 5px 0; cursor: pointer; transition: all 0.15s;
+  }
+  .level-btn.active { background: #0f3460; color: #fff; font-weight: 600; }
+
+  /* Legend */
+  #legend { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+  #legend-title  { font-size: 0.72rem; color: #c8d8f0; font-weight: 600; }
+  #legend-scale  { height: 11px; border-radius: 2px; background: #333; }
+  #legend-labels { display: flex; justify-content: space-between; font-size: 0.63rem; color: #8ab; }
+  #legend-na     { font-size: 0.63rem; color: #8ab; }
+
+  /* Overlay layer legends */
+  .ovr-legend { padding: 4px 0 4px 22px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.65rem; color: #8ab; padding: 2px 0; }
+  .swatch { width: 12px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .layer-group-hdr {
+    font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.09em; color: #e8e8e8;
+    padding: 10px 0 3px; border-top: 1px solid #1e2f50; margin-top: 2px;
+    cursor: pointer; user-select: none;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .layer-group-hdr:hover { color: #ffffff; }
+  .layer-group-hdr.first { border-top: none; padding-top: 2px; }
+  .group-arrow { font-size: 0.65rem; transition: transform 0.2s; display: inline-block; }
+  .layer-group-hdr.collapsed .group-arrow { transform: rotate(-90deg); }
+  .layer-group-body.collapsed { display: none; }
+  .census-pop .leaflet-popup-content-wrapper { background:#1a2a4a; color:#c8d8e8; border:1px solid #2a4a7a; border-radius:6px; padding:0; }
+  .census-pop .leaflet-popup-tip { background:#1a2a4a; }
+  .census-pop .leaflet-popup-close-button { color:#6ad4ff !important; }
+  .census-popup { font-size:0.72rem; line-height:1.4; }
+  .census-popup b { display:block; color:#4fc3f7; font-size:0.8rem; margin-bottom:5px; }
+  .census-popup table { border-collapse:collapse; width:100%; }
+  .census-popup td { padding:1px 4px; }
+  .census-popup td:last-child { text-align:right; color:#e0f0ff; font-variant-numeric:tabular-nums; }
+  .census-popup tr.hl td { color:#ffd54f; font-weight:600; }
+
+  /* SLR slider */
+  .slr-label { font-size: 0.7rem; color: #8ab; margin-bottom: 3px; }
+  .slr-slider { width: 100%; accent-color: #4fc3f7; cursor: pointer; display: block; }
+  .slr-range  { display: flex; justify-content: space-between; font-size: 0.62rem; color: #5a7a9a; margin-top: 2px; }
+
+  /* ── Feature info card ───────────────────────────────── */
+  #tract-info { flex: 1; overflow-y: auto; }
+  #tract-card { display: none; padding: 14px; }
+  #tract-card h3 { font-size: 0.85rem; color: #4fc3f7; margin-bottom: 10px; line-height: 1.3; }
+  .stat-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 0; border-bottom: 1px solid #1e2f50; font-size: 0.75rem;
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-label { color: #8ab; }
+  .stat-val   { font-weight: 600; color: #e8e8e8; }
+  .stat-val.highlight { color: #4fc3f7; }
+
+  /* ── Search bar ──────────────────────────────────────── */
+  #search-wrap {
+    position: relative; margin-left: auto; flex-shrink: 0;
+    display: flex; align-items: center;
+  }
+  #search-input {
+    background: #0f2040; border: 1px solid #2a4a7a; border-radius: 5px;
+    color: #e8e8e8; font-size: 0.78rem; padding: 5px 30px 5px 10px;
+    width: 220px; outline: none; transition: border-color 0.15s;
+  }
+  #search-input:focus { border-color: #4fc3f7; }
+  #search-input::placeholder { color: #4a6a8a; }
+  #search-clear {
+    position: absolute; right: 7px; background: none; border: none;
+    color: #4a6a8a; cursor: pointer; font-size: 0.85rem; line-height: 1;
+    display: none; padding: 0;
+  }
+  #search-clear:hover { color: #c8d8f0; }
+  #search-results {
+    position: absolute; top: calc(100% + 5px); right: 0;
+    background: #16213e; border: 1px solid #2a4a7a; border-radius: 5px;
+    width: 300px; max-height: 240px; overflow-y: auto;
+    z-index: 2000; display: none; box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  }
+  .search-result-item {
+    padding: 8px 12px; cursor: pointer; font-size: 0.75rem;
+    border-bottom: 1px solid #1e2f50; color: #c8d8f0; line-height: 1.35;
+  }
+  .search-result-item:last-child { border-bottom: none; }
+  .search-result-item:hover { background: #1e3a6e; color: #fff; }
+  .search-result-type { font-size: 0.65rem; color: #4a8aaa; }
+  .search-no-results { padding: 10px 12px; font-size: 0.75rem; color: #5a7a9a; }
+
+  /* ── Mobile ──────────────────────────────────────────── */
+  #sidebar-overlay { display: none; position: fixed; inset: 0; z-index: 490; background: rgba(0,0,0,0.5); }
+  @media (max-width: 600px) {
+    #map { left: 0; }
+    #search-input { width: 140px; }
+    #menu-toggle { display: block; }
+    #sidebar { left: -280px; transition: left 0.25s ease; z-index: 600; box-shadow: 2px 0 16px rgba(0,0,0,0.6); }
+    #sidebar.open { left: 0; }
+    #sidebar-overlay.visible { display: block; }
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>Cape Cod <span>by the Numbers</span></h1>
+  <div id="search-wrap">
+    <input id="search-input" type="text" placeholder="Search address or place…" autocomplete="off" spellcheck="false">
+    <button id="search-clear" title="Clear">✕</button>
+    <div id="search-results"></div>
+  </div>
+  <button id="menu-toggle" aria-label="Menu">☰</button>
+</div>
+
+<div id="sidebar-overlay"></div>
+
+<div id="sidebar">
+  <div class="panel">
+    <div class="panel-title">Layers</div>
+
+    <!-- ── Elevation ─────────────────────────────────── -->
+    <div class="layer-group-hdr first">Elevation <span class="group-arrow">▾</span></div>
+    <div class="layer-group-body">
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-elevation" class="layer-check">
+        <label for="layer-elevation" class="layer-label">
+          <span class="layer-name">LiDAR Elevation Hillshade</span>
+          <span class="layer-src">MassGIS · 0.5m 2013–2021</span>
+        </label>
+      </div>
+      <div id="elevation-controls" style="display:none; padding: 6px 0 2px 0">
+        <div class="slr-label">Opacity <b><span id="elev-opacity-val">70</span>%</b></div>
+        <input type="range" id="elev-slider" min="10" max="100" value="70" step="5" class="slr-slider">
+        <div style="font-size:0.61rem;color:#4a6a8a;margin-top:4px">Shading shows slope &amp; terrain relief.</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-contours" class="layer-check">
+        <label for="layer-contours" class="layer-label">
+          <span class="layer-name">Topographic Contours</span>
+          <span class="layer-src">USGS National Map</span>
+        </label>
+      </div>
+
+    </div><!-- /Elevation -->
+
+    <!-- ── Hazards & Climate ──────────────────────────── -->
+    <div class="layer-group-hdr">Hazards &amp; Climate <span class="group-arrow">▾</span></div>
+
+    <div class="layer-group-body">
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-flood" class="layer-check">
+        <label for="layer-flood" class="layer-label">
+          <span class="layer-name">Flood Zones</span>
+          <span class="layer-src">FEMA NFHL</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-flood" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#a50026"></span>Coastal High Hazard (V/VE)</div>
+        <div class="legend-item"><span class="swatch" style="background:#d73027"></span>100-Year Flood (A/AE)</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-slr" class="layer-check">
+        <label for="layer-slr" class="layer-label">
+          <span class="layer-name">Sea Level Rise</span>
+          <span class="layer-src">CCC</span>
+        </label>
+      </div>
+      <div id="slr-controls" style="display:none; padding: 6px 0 2px 0">
+        <div class="slr-label">Inundation at <b><span id="slr-level-val">3</span> ft</b> rise</div>
+        <input type="range" id="slr-slider" min="1" max="6" value="3" step="1" class="slr-slider">
+        <div class="slr-range"><span>1 ft</span><span>6 ft</span></div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-surge" class="layer-check">
+        <label for="layer-surge" class="layer-label">
+          <span class="layer-name">Storm Surge</span>
+          <span class="layer-src">CCC SLOSH 2022</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-surge" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#ffd700"></span>Hurricane Category 1</div>
+        <div class="legend-item"><span class="swatch" style="background:#ff8c00"></span>Hurricane Category 2</div>
+        <div class="legend-item"><span class="swatch" style="background:#ff4500"></span>Hurricane Category 3</div>
+        <div class="legend-item"><span class="swatch" style="background:#8b0000"></span>Hurricane Category 4</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-gw" class="layer-check">
+        <label for="layer-gw" class="layer-label">
+          <span class="layer-name">Shallow Groundwater</span>
+          <span class="layer-src">CCC · &lt;20ft depth</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-gw" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#00b4d8"></span>Groundwater depth &lt; 20 ft</div>
+      </div>
+
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-contaminated" class="layer-check">
+        <label for="layer-contaminated" class="layer-label">
+          <span class="layer-name">Contaminated Sites (21E)</span>
+          <span class="layer-src">MassDEP</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-contaminated" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#dc143c;border-radius:50%"></span>Tier I (most severe)</div>
+        <div class="legend-item"><span class="swatch" style="background:#ff8c00;border-radius:50%"></span>Tier II</div>
+        <div class="legend-item"><span class="swatch" style="background:#ffd700;border-radius:50%"></span>Other / Unknown tier</div>
+      </div>
+
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-landfills" class="layer-check">
+        <label for="layer-landfills" class="layer-label">
+          <span class="layer-name">Landfills</span>
+          <span class="layer-src">MassDEP</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-landfills" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#e67e22"></span>Active landfill</div>
+        <div class="legend-item"><span class="swatch" style="background:#7f8c8d"></span>Closed / inactive</div>
+      </div>
+
+
+    </div><!-- /Hazards & Climate -->
+
+    <!-- ── Water Quality ──────────────────────────────── -->
+    <div class="layer-group-hdr">Water Quality <span class="group-arrow">▾</span></div>
+    <div class="layer-group-body">
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-zone2" class="layer-check">
+        <label for="layer-zone2" class="layer-label">
+          <span class="layer-name">Wellhead Protection</span>
+          <span class="layer-src">MassDEP Zone II</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-zone2" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#0077b6"></span>Zone II protection area</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-ponds" class="layer-check">
+        <label for="layer-ponds" class="layer-label">
+          <span class="layer-name">Pond Water Quality</span>
+          <span class="layer-src">CCC PALS</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-ponds" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#1565c0"></span>Oligotrophic (healthy)</div>
+        <div class="legend-item"><span class="swatch" style="background:#00838f"></span>Mesotrophic (moderate)</div>
+        <div class="legend-item"><span class="swatch" style="background:#bf360c"></span>Eutrophic (impaired)</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-eelgrass" class="layer-check">
+        <label for="layer-eelgrass" class="layer-label">
+          <span class="layer-name">Eel Grass Beds</span>
+          <span class="layer-src">CCC</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-eelgrass" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#558b2f"></span>Eel grass bed</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-bogs" class="layer-check">
+        <label for="layer-bogs" class="layer-label">
+          <span class="layer-name">Cranberry Bogs</span>
+          <span class="layer-src">CCC 208 Plan</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-bogs" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#7b1d1d"></span>Active cranberry bog</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-sewer" class="layer-check">
+        <label for="layer-sewer" class="layer-label">
+          <span class="layer-name">Wastewater</span>
+          <span class="layer-src">CCC 208 Plan</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-sewer" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#1a6b3c"></span>Existing sewered area</div>
+        <div class="legend-item"><span class="swatch" style="background:#4da36a"></span>Planned by 2030</div>
+        <div class="legend-item"><span class="swatch" style="background:#74c28b"></span>Planned 2032–33</div>
+        <div class="legend-item"><span class="swatch" style="background:#a8dbb7"></span>Planned 2037–42</div>
+        <div class="legend-item"><span class="swatch" style="background:#e67e22;border-radius:50%"></span>Title 5 at-risk system</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-nitrate" class="layer-check">
+        <label for="layer-nitrate" class="layer-label">
+          <span class="layer-name">Nitrate in Wells</span>
+          <span class="layer-src">CCC 208 Plan</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-nitrate" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#d73027;border-radius:50%"></span>&gt;5 mg/L — elevated</div>
+        <div class="legend-item"><span class="swatch" style="background:#fc8d59;border-radius:50%"></span>2–5 mg/L</div>
+        <div class="legend-item"><span class="swatch" style="background:#4575b4;border-radius:50%"></span>&lt;2 mg/L — low</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-nitrogen" class="layer-check">
+        <label for="layer-nitrogen" class="layer-label">
+          <span class="layer-name">Embayment Nitrogen</span>
+          <span class="layer-src">CCC 208 Plan</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-nitrogen" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#ff6b35;border-radius:50%"></span>Nitrogen monitoring station</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-tot" class="layer-check">
+        <label for="layer-tot" class="layer-label">
+          <span class="layer-name">N Load Travel Time</span>
+          <span class="layer-src">USGS / CCC 208</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-tot" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#d73027"></span>&lt;2 yrs — high N risk</div>
+        <div class="legend-item"><span class="swatch" style="background:#fc8d59"></span>2–5 yrs</div>
+        <div class="legend-item"><span class="swatch" style="background:#fee08b"></span>5–10 yrs</div>
+        <div class="legend-item"><span class="swatch" style="background:#91bfdb"></span>10–25 yrs</div>
+        <div class="legend-item"><span class="swatch" style="background:#4575b4"></span>&gt;25 yrs — lower risk</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-lenses" class="layer-check">
+        <label for="layer-lenses" class="layer-label">
+          <span class="layer-name">Freshwater Lenses</span>
+          <span class="layer-src">CCC · Aquifer zones</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-lenses" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#023e8a"></span>Sagamore / Monomoy / Nauset lenses</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-swqs" class="layer-check">
+        <label for="layer-swqs" class="layer-label">
+          <span class="layer-name">Water Quality Standards</span>
+          <span class="layer-src">MassDEP SWQS 2013</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-swqs" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#0a5eb0"></span>Class A — drinking water supply</div>
+        <div class="legend-item"><span class="swatch" style="background:#006d5b"></span>Class SA — shellfishing</div>
+        <div class="legend-item"><span class="swatch" style="background:#2980b9"></span>Class B / SB</div>
+        <div class="legend-item"><span class="swatch" style="background:#7f8c8d"></span>Other / unclassified</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-beaches" class="layer-check">
+        <label for="layer-beaches" class="layer-label">
+          <span class="layer-name">Marine Beaches</span>
+          <span class="layer-src">MassGIS</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-beaches" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#00b4d8"></span>Public beach</div>
+        <div class="legend-item"><span class="swatch" style="background:#48cae4"></span>Semi-public beach</div>
+      </div>
+
+    </div><!-- /Water Quality -->
+
+    <!-- ── Land & Conservation ────────────────────────── -->
+    <div class="layer-group-hdr">Land &amp; Conservation <span class="group-arrow">▾</span></div>
+    <div class="layer-group-body">
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-openspace" class="layer-check">
+        <label for="layer-openspace" class="layer-label">
+          <span class="layer-name">Protected Open Space</span>
+          <span class="layer-src">MassGIS EEA</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-openspace" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#1b5e20"></span>Federal</div>
+        <div class="legend-item"><span class="swatch" style="background:#388e3c"></span>State</div>
+        <div class="legend-item"><span class="swatch" style="background:#66bb6a"></span>Municipal</div>
+        <div class="legend-item"><span class="swatch" style="background:#1a759f"></span>Land Trust</div>
+        <div class="legend-item"><span class="swatch" style="background:#74c69d"></span>Non-Profit / Other</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-ns" class="layer-check">
+        <label for="layer-ns" class="layer-label">
+          <span class="layer-name">National Seashore</span>
+          <span class="layer-src">CCNS Boundary</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-ns" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#f9a825"></span>Cape Cod National Seashore</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-wetlands" class="layer-check">
+        <label for="layer-wetlands" class="layer-label">
+          <span class="layer-name">Wetlands</span>
+          <span class="layer-src">MassDEP</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-wetlands" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#2e7d32"></span>Wetland area</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-acec" class="layer-check">
+        <label for="layer-acec" class="layer-label">
+          <span class="layer-name">Critical Env. Concern</span>
+          <span class="layer-src">MassDEP ACEC</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-acec" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#d4a017"></span>Area of Critical Environmental Concern</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-biomap" class="layer-check">
+        <label for="layer-biomap" class="layer-label">
+          <span class="layer-name">BioMap2 Core Habitat</span>
+          <span class="layer-src">MassWildlife</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-biomap" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#1b7837"></span>Priority biodiversity habitat</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-nhesp" class="layer-check">
+        <label for="layer-nhesp" class="layer-label">
+          <span class="layer-name">Rare Species Habitat</span>
+          <span class="layer-src">NHESP Priority</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-nhesp" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#7b2d8b"></span>Priority habitat of rare species</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-vernal" class="layer-check">
+        <label for="layer-vernal" class="layer-label">
+          <span class="layer-name">Vernal Pools</span>
+          <span class="layer-src">NHESP Certified</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-vernal" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#00b4d8;border-radius:50%"></span>Certified vernal pool</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-farms" class="layer-check">
+        <label for="layer-farms" class="layer-label">
+          <span class="layer-name">Farms</span>
+          <span class="layer-src">CCC</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-farms" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#8db600"></span>Active farmland</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-tidal" class="layer-check">
+        <label for="layer-tidal" class="layer-label">
+          <span class="layer-name">Tidal Wetland Restoration</span>
+          <span class="layer-src">CCC / NRCS</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-tidal" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#40916c"></span>NRCS tidal restoration site</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-restoration" class="layer-check">
+        <label for="layer-restoration" class="layer-label">
+          <span class="layer-name">Restoration Projects</span>
+          <span class="layer-src">CCC</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-restoration" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#2d9d78;border-radius:50%"></span>High ecological value</div>
+        <div class="legend-item"><span class="swatch" style="background:#74c69d;border-radius:50%"></span>Low / N/A</div>
+      </div>
+
+    </div><!-- /Land & Conservation -->
+
+    <!-- ── Land Use & Regulation ──────────────────────── -->
+    <div class="layer-group-hdr">Land Use &amp; Regulation <span class="group-arrow">▾</span></div>
+    <div class="layer-group-body">
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-zoning" class="layer-check">
+        <label for="layer-zoning" class="layer-label">
+          <span class="layer-name">Zoning</span>
+          <span class="layer-src">CCC Regional</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-zoning" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#f4d03f"></span>Residential</div>
+        <div class="legend-item"><span class="swatch" style="background:#e67e22"></span>Business / Commercial</div>
+        <div class="legend-item"><span class="swatch" style="background:#c0392b"></span>Industrial</div>
+        <div class="legend-item"><span class="swatch" style="background:#8e44ad"></span>Commercial / Prof</div>
+        <div class="legend-item"><span class="swatch" style="background:#7f8c8d"></span>Special / Other</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-dcpc-fert" class="layer-check">
+        <label for="layer-dcpc-fert" class="layer-label">
+          <span class="layer-name">Fertilizer DCPC</span>
+          <span class="layer-src">CCC Boundaries</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-dcpc-fert" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#c8b400"></span>Fertilizer Management DCPC</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-dcpc-all" class="layer-check">
+        <label for="layer-dcpc-all" class="layer-label">
+          <span class="layer-name">All DCPCs</span>
+          <span class="layer-src">CCC Boundaries</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-dcpc-all" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#b8860b"></span>District of Critical Planning Concern</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-giz" class="layer-check">
+        <label for="layer-giz" class="layer-label">
+          <span class="layer-name">Growth Incentive Zones</span>
+          <span class="layer-src">CCC Boundaries</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-giz" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#e74c3c"></span>CCC-designated growth area</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-historic" class="layer-check">
+        <label for="layer-historic" class="layer-label">
+          <span class="layer-name">Historic Districts</span>
+          <span class="layer-src">MHC</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-historic" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#c9a84c"></span>MHC-designated historic area</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-omp" class="layer-check">
+        <label for="layer-omp" class="layer-label">
+          <span class="layer-name">Ocean Management Plan</span>
+          <span class="layer-src">CCC OMP</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-omp" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#8b0000"></span>Prohibited area</div>
+        <div class="legend-item"><span class="swatch" style="background:#d4420a"></span>Exclusionary area</div>
+        <div class="legend-item"><span class="swatch" style="background:#e8a838"></span>Provisional area</div>
+      </div>
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-dri" class="layer-check">
+        <label for="layer-dri" class="layer-label">
+          <span class="layer-name">DRI Decisions</span>
+          <span class="layer-src">CCC Regulatory</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-dri" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#27ae60;border-radius:50%"></span>Approved</div>
+        <div class="legend-item"><span class="swatch" style="background:#c0392b;border-radius:50%"></span>Denied</div>
+        <div class="legend-item"><span class="swatch" style="background:#f39c12;border-radius:50%"></span>Other outcome</div>
+      </div>
+
+    </div><!-- /Land Use & Regulation -->
+
+    <!-- ── Social & Equity ────────────────────────────── -->
+    <div class="layer-group-hdr">Social &amp; Equity <span class="group-arrow">▾</span></div>
+    <div class="layer-group-body">
+
+      <div class="layer-row">
+        <input type="checkbox" id="layer-ej" class="layer-check">
+        <label for="layer-ej" class="layer-label">
+          <span class="layer-name">Environmental Justice</span>
+          <span class="layer-src">CCC 2020</span>
+        </label>
+      </div>
+      <div class="ovr-legend" id="legend-ej" style="display:none">
+        <div class="legend-item"><span class="swatch" style="background:#9e3bc0"></span>EJ-designated block group</div>
+      </div>
+
+      <div class="layer-row last">
+        <input type="checkbox" id="layer-census" class="layer-check">
+        <label for="layer-census" class="layer-label">
+          <span class="layer-name">Census Data</span>
+          <span class="layer-src">ACS 2023 · US Census</span>
+        </label>
+      </div>
+      <div class="layer-body" id="census-body" style="display:none">
+        <div class="sub-label">Geography</div>
+        <div class="level-toggle">
+          <button class="level-btn active" data-level="tract">Census Tracts</button>
+          <button class="level-btn" data-level="town">Towns</button>
+        </div>
+
+        <div id="legend">
+          <div id="legend-title">—</div>
+          <div id="legend-scale"></div>
+          <div id="legend-labels"><span id="leg-low"></span><span id="leg-high"></span></div>
+          <div id="legend-na">☐ No data</div>
+        </div>
+
+        <div class="sub-label">Metric</div>
+        <div id="metric-list"></div>
+      </div>
+
+    </div><!-- /Social & Equity -->
+  </div>
+
+  <!-- Feature info card -->
+  <div id="tract-info">
+<div id="tract-card"></div>
+  </div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ─── Metrics ───────────────────────────────────────────────────────────────
+const METRICS = [
+  { key:"med_income",        label:"Median Household Income",   group:"Income & Cost",           format:v=>v!=null?"$"+v.toLocaleString():"N/A", colors:["#f7fcf0","#ccebc5","#7bccc4","#2b8cbe","#084081"], fmtBreak:v=>"$"+Math.round(v/1000)+"k" },
+  { key:"gini",              label:"Income Inequality (Gini)",  group:"Income & Cost",           format:v=>v!=null?v.toFixed(3):"N/A",           colors:["#fee5d9","#fcae91","#fb6a4a","#de2d26","#a50f15"], fmtBreak:v=>typeof v==="number"?v.toFixed(2):v },
+  { key:"med_home_value",    label:"Median Home Value",         group:"Income & Cost",           format:v=>v!=null?"$"+v.toLocaleString():"N/A", colors:["#f7f4f9","#d4b9da","#c994c7","#dd1c77","#67001f"], fmtBreak:v=>"$"+Math.round(v/1000)+"k" },
+  { key:"median_rent",       label:"Median Monthly Rent",       group:"Income & Cost",           format:v=>v!=null?"$"+v.toLocaleString()+"/mo":"N/A", colors:["#fff5eb","#fdd0a2","#fdae6b","#e6550d","#7f2704"], fmtBreak:v=>"$"+Math.round(v) },
+  { key:"poverty_rate",      label:"Poverty Rate",              group:"Poverty & Assistance",    format:v=>v!=null?v+"%":"N/A",                  colors:["#fff7ec","#fdd49e","#fc8d59","#d7301f","#7f0000"], fmtBreak:v=>v+"%" },
+  { key:"pct_snap",          label:"Households Receiving SNAP", group:"Poverty & Assistance",    format:v=>v!=null?v+"%":"N/A",                  colors:["#fff7fb","#ece2f0","#a6bddb","#1c9099","#016450"], fmtBreak:v=>v+"%" },
+  { key:"pct_uninsured",     label:"Uninsured Rate",            group:"Poverty & Assistance",    format:v=>v!=null?v+"%":"N/A",                  colors:["#f7fcf5","#c7e9c0","#74c476","#238b45","#00441b"], fmtBreak:v=>v+"%" },
+  { key:"unemployment_rate", label:"Unemployment Rate",         group:"Employment",              format:v=>v!=null?v+"%":"N/A",                  colors:["#fff5f0","#fcbba1","#fb6a4a","#cb181d","#67000d"], fmtBreak:v=>v+"%" },
+  { key:"pct_wfh",           label:"Working From Home",         group:"Employment",              format:v=>v!=null?v+"%":"N/A",                  colors:["#f7fbff","#c6dbef","#6baed6","#2171b5","#084594"], fmtBreak:v=>v+"%" },
+  { key:"pct_long_commute",  label:"Long Commute (45+ min)",    group:"Employment",              format:v=>v!=null?v+"%":"N/A",                  colors:["#ffffd9","#edf8b1","#7fcdbb","#1d91c0","#0c2c84"], fmtBreak:v=>v+"%" },
+  { key:"pct_bachelors_plus",label:"College Educated (BA+)",    group:"Education & Demographics",format:v=>v!=null?v+"%":"N/A",                  colors:["#f7fcfd","#b2e2e2","#66c2a4","#2ca25f","#006d2c"], fmtBreak:v=>v+"%" },
+  { key:"pct_65plus",        label:"Population Age 65+",        group:"Education & Demographics",format:v=>v!=null?v+"%":"N/A",                  colors:["#f7fcf5","#e5f5e0","#a1d99b","#41ab5d","#00441b"], fmtBreak:v=>v+"%" },
+  { key:"pct_foreign_born",  label:"Foreign-Born Population",   group:"Education & Demographics",format:v=>v!=null?v+"%":"N/A",                  colors:["#fff5f0","#fee0d2","#fc9272","#de2d26","#67000d"], fmtBreak:v=>v+"%" },
+  { key:"pct_owner_occupied",label:"Owner-Occupied Housing",    group:"Housing",                 format:v=>v!=null?v+"%":"N/A",                  colors:["#fff7fb","#ece7f2","#a6bddb","#2b8cbe","#045a8d"], fmtBreak:v=>v+"%" },
+  { key:"pct_seasonal",      label:"Seasonal/Vacation Housing", group:"Housing",                 format:v=>v!=null?v+"%":"N/A",                  colors:["#ffffd9","#edf8b1","#7fcdbb","#1d91c0","#253494"], fmtBreak:v=>v+"%" },
+  { key:"pct_broadband",     label:"Broadband Access",          group:"Infrastructure",          format:v=>v!=null?v+"%":"N/A",                  colors:["#fff5eb","#fee6ce","#fdae6b","#e6550d","#a63603"], fmtBreak:v=>v+"%" },
+];
+
+// ─── State ─────────────────────────────────────────────────────────────────
+let currentMetric    = METRICS[0];
+let currentLevel     = "tract";
+let censusVisible    = false;
+let tractLayer       = null;
+let townLayer        = null;
+let tractData        = null;
+let townData         = null;
+let selectedLayer    = null;
+let floodLayer       = null;
+let ejLayer          = null;
+let slrLayer         = null;
+let slrLevel         = 3;
+const slrCache       = {};
+let sewerLayer       = null;
+let title5Layer      = null;
+let openSpaceLayer   = null;
+let zone2Layer       = null;
+let zoningLayer      = null;
+let bogsLayer        = null;
+let gwLayer          = null;
+let acecLayer        = null;
+let pondsLayer       = null;
+let wetlandsLayer    = null;
+let eelgrassLayer    = null;
+let nsLayer          = null;
+let dcpcFertLayer    = null;
+let dcpcAllLayer     = null;
+let surgeLayer        = null;
+let nitrogenLayer     = null;
+let contaminatedLayer = null;
+let landfillsLayer    = null;
+let biomapLayer       = null;
+let nhespLayer        = null;
+let totLayer          = null;
+let nitrateLayer      = null;
+let vernalLayer       = null;
+let farmsLayer        = null;
+let gizLayer          = null;
+let historicLayer     = null;
+let elevationLayer        = null;
+let contoursLayer         = null;
+let freshwaterLensesLayer = null;
+let tidalWetlandsLayer    = null;
+let ompZonesLayer         = null;
+let restorationLayer      = null;
+let driLayer              = null;
+let marineBeachesLayer    = null;
+let swqsLayer             = null;
+
+// ─── Map ───────────────────────────────────────────────────────────────────
+const map = L.map("map", {
+  center: [41.78, -70.3],
+  zoom: window.innerWidth > 600 ? 10 : 9,
+  zoomControl: true,
+});
+L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png", {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+  maxZoom: 19,
+}).addTo(map);
+
+// ─── Color helpers ─────────────────────────────────────────────────────────
+function quantileBreaks(values, n) {
+  const sorted = values.filter(v => v != null).sort((a, b) => a - b);
+  if (!sorted.length) return [];
+  const breaks = [];
+  for (let i = 0; i <= n; i++) breaks.push(sorted[Math.floor((sorted.length - 1) * i / n)]);
+  return breaks;
+}
+
+function lerpColor(a, b, t) {
+  const hr = (s, o) => parseInt(s.slice(o, o+2), 16);
+  const lerp = (x, y) => Math.round(x + (y - x) * t).toString(16).padStart(2, "0");
+  return `#${lerp(hr(a,1),hr(b,1))}${lerp(hr(a,3),hr(b,3))}${lerp(hr(a,5),hr(b,5))}`;
+}
+
+function colorFor(value, breaks, colors) {
+  if (value == null || breaks.length < 2) return "#444";
+  if (value <= breaks[0]) return colors[0];
+  if (value >= breaks[breaks.length - 1]) return colors[colors.length - 1];
+  for (let i = 1; i < breaks.length; i++) {
+    if (value <= breaks[i]) return lerpColor(colors[i-1], colors[i], (value - breaks[i-1]) / (breaks[i] - breaks[i-1]));
+  }
+  return colors[colors.length - 1];
+}
+
+function gradientCSS(colors) {
+  const stops = [];
+  for (let i = 0; i < colors.length - 1; i++) {
+    for (let s = 0; s < 10; s++) stops.push(lerpColor(colors[i], colors[i+1], s/10));
+  }
+  stops.push(colors[colors.length - 1]);
+  return `linear-gradient(to right, ${stops.join(",")})`;
+}
+
+// ─── Choropleth ────────────────────────────────────────────────────────────
+function buildChoropleth(geojson, breaks) {
+  const colors = currentMetric.colors;
+  return L.geoJSON(geojson, {
+    style: feat => {
+      const v = feat.properties[currentMetric.key];
+      return {
+        fillColor:   v != null ? colorFor(v, breaks, colors) : "#333",
+        fillOpacity: 0.75,
+        color:       selectedLayer && selectedLayer.feature === feat ? "#fff" : "#1a2a4a",
+        weight:      selectedLayer && selectedLayer.feature === feat ? 2 : 0.8,
+        opacity:     0.9,
+      };
+    },
+    onEachFeature: (feat, layer) => {
+      layer.on("click",    () => selectFeature(feat, layer));
+      layer.on("mouseover",() => { if (layer !== selectedLayer) layer.setStyle({ color: "#6ad4ff", weight: 1.5 }); });
+      layer.on("mouseout", () => { if (layer !== selectedLayer) layer.setStyle({ color: "#1a2a4a", weight: 0.8 }); });
+    },
+  });
+}
+
+function renderCurrentLayer() {
+  if (tractLayer) { map.removeLayer(tractLayer); tractLayer = null; }
+  if (townLayer)  { map.removeLayer(townLayer);  townLayer  = null; }
+  selectedLayer = null;
+
+  if (!censusVisible) { updateLegend([]); clearTractCard(); return; }
+
+  const geojson = currentLevel === "tract" ? tractData : townData;
+  if (!geojson) return;
+
+  const breaks = quantileBreaks(geojson.features.map(f => f.properties[currentMetric.key]), currentMetric.colors.length - 1);
+  const layer  = buildChoropleth(geojson, breaks);
+
+  if (currentLevel === "tract") tractLayer = layer;
+  else townLayer = layer;
+  layer.addTo(map);
+
+  updateLegend(breaks);
+  clearTractCard();
+}
+
+function updateLegend(breaks) {
+  const m = currentMetric;
+  document.getElementById("legend-title").textContent = censusVisible ? m.label : "—";
+  document.getElementById("legend-scale").style.background = censusVisible && breaks.length >= 2 ? gradientCSS(m.colors) : "#333";
+  document.getElementById("leg-low").textContent  = breaks.length >= 2 ? m.fmtBreak(breaks[0]) : "";
+  document.getElementById("leg-high").textContent = breaks.length >= 2 ? m.fmtBreak(breaks[breaks.length-1]) : "";
+}
+
+// ─── Feature card ──────────────────────────────────────────────────────────
+function selectFeature(feat, layer) {
+  if (selectedLayer === layer) {
+    layer.setStyle({ color: "#1a2a4a", weight: 0.8 });
+    layer.closePopup();
+    selectedLayer = null;
+    return;
+  }
+  if (selectedLayer) selectedLayer.setStyle({ color: "#1a2a4a", weight: 0.8 });
+  selectedLayer = layer;
+  layer.setStyle({ color: "#fff", weight: 2 });
+
+  const p = feat.properties;
+  const title = p.basename || p.name || ("GEOID " + p.geoid);
+  const popRow = p.total_pop != null ? `<tr><td>Population</td><td>${p.total_pop.toLocaleString()}</td></tr>` : "";
+  const rows = METRICS.map(m => {
+    const v = p[m.key];
+    return `<tr${m.key === currentMetric.key ? ' class="hl"' : ""}><td>${m.label}</td><td>${m.format(v)}</td></tr>`;
+  }).join("");
+  const html = `<div class="census-popup"><b>${title}</b><table>${popRow}${rows}</table></div>`;
+  layer.bindPopup(html, { maxWidth: 260, className: "census-pop" }).openPopup();
+}
+
+function showTractCard(props) {
+
+  const card = document.getElementById("tract-card");
+  card.style.display = "block";
+
+  const title = props.basename || props.name || ("GEOID " + props.geoid);
+  const popRow = props.total_pop != null
+    ? `<div class="stat-row"><span class="stat-label">Total Population</span><span class="stat-val">${props.total_pop.toLocaleString()}</span></div>`
+    : "";
+  const rows = METRICS.map(m => {
+    const v = props[m.key];
+    return `<div class="stat-row">
+      <span class="stat-label">${m.label}</span>
+      <span class="stat-val${m.key === currentMetric.key ? " highlight" : ""}">${m.format(v)}</span>
+    </div>`;
+  });
+  card.innerHTML = `<h3>${title}</h3>${popRow}${rows.join("")}`;
+}
+
+function clearTractCard() {
+
+  const card = document.getElementById("tract-card");
+  card.style.display = "none";
+  card.innerHTML = "";
+}
+
+// ─── Overlay layers ────────────────────────────────────────────────────────
+
+function toggleElevation(on) {
+  if (!on) {
+    if (elevationLayer) { map.removeLayer(elevationLayer); elevationLayer = null; }
+    document.getElementById("elevation-controls").style.display = "none";
+    return;
+  }
+  const opacity = parseInt(document.getElementById("elev-slider").value) / 100;
+  elevationLayer = L.tileLayer(
+    "https://tiles.arcgis.com/tiles/hGdibHYSPO59RG1h/arcgis/rest/services/LiDAR_Elevation_Hillshade/MapServer/tile/{z}/{y}/{x}",
+    { opacity, attribution: "MassGIS LiDAR 2013–2021", maxZoom: 19 }
+  ).addTo(map);
+  document.getElementById("elevation-controls").style.display = "block";
+}
+
+function toggleContours(on) {
+  if (!on) {
+    if (contoursLayer) { map.removeLayer(contoursLayer); contoursLayer = null; }
+    return;
+  }
+  const ContoursLayer = L.GridLayer.extend({
+    createTile(coords) {
+      const img = L.DomUtil.create("img", "leaflet-tile");
+      const p = Math.pow(2, coords.z);
+      const lonW = coords.x / p * 360 - 180;
+      const lonE = (coords.x + 1) / p * 360 - 180;
+      const latN = Math.atan(Math.sinh(Math.PI * (1 - 2 * coords.y / p))) * 180 / Math.PI;
+      const latS = Math.atan(Math.sinh(Math.PI * (1 - 2 * (coords.y + 1) / p))) * 180 / Math.PI;
+      img.src = `https://carto.nationalmap.gov/arcgis/rest/services/contours/MapServer/export?bbox=${lonW},${latS},${lonE},${latN}&bboxSR=4326&size=256,256&imageSR=4326&format=png32&transparent=true&f=image`;
+      return img;
+    }
+  });
+  contoursLayer = new ContoursLayer({ attribution: "USGS The National Map", maxZoom: 19 }).addTo(map);
+}
+
+
+function buildFloodLayer(geojson) {
+  const styles = {
+    coastal:  { fillColor:"#a50026", fillOpacity:0.55, color:"#a50026", weight:0.5, opacity:0.7 },
+    high:     { fillColor:"#d73027", fillOpacity:0.45, color:"#d73027", weight:0.5, opacity:0.6 },
+    moderate: { fillColor:"#f46d43", fillOpacity:0.30, color:"#f46d43", weight:0.5, opacity:0.5 },
+  };
+  const labels = { coastal:"Coastal High Hazard", high:"100-Year Flood", moderate:"500-Year Flood" };
+  return L.geoJSON(geojson, {
+    style: f => styles[f.properties.risk] || styles.high,
+    onEachFeature: (f, layer) => {
+      const p = f.properties;
+      layer.bindTooltip(`<b>Zone ${p.zone}</b><br>${labels[p.risk] || p.risk}`, { sticky: true });
+    },
+  });
+}
+
+function buildEJLayer(geojson) {
+  const designated = geojson.features.filter(f => {
+    const v = f.properties.ej;
+    return v && v !== "N" && v !== "No" && v !== "NO";
+  });
+  return L.geoJSON({ type:"FeatureCollection", features:designated }, {
+    style: { fillColor:"#9e3bc0", fillOpacity:0.38, color:"#c050e8", weight:1, opacity:0.7 },
+    onEachFeature: (f, layer) => {
+      const p = f.properties;
+      const lines = [
+        "<b>EJ Community</b>",
+        p.municipality || "",
+        p.criteria || "",
+        p.pct_minority != null ? `${p.pct_minority.toFixed(1)}% minority` : "",
+        p.mhhi ? `$${Math.round(p.mhhi/1000)}k median income` : "",
+      ].filter(Boolean);
+      layer.bindTooltip(lines.join("<br>"), { sticky: true });
+    },
+  });
+}
+
+function buildSLRLayer(geojson, ft) {
+  const blues = ["","#deebf7","#c6dbef","#9ecae1","#6baed6","#4292c6","#2171b5","#084594"];
+  return L.geoJSON(geojson, {
+    style: { fillColor:blues[ft]||"#2171b5", fillOpacity:0.45, color:"#4292c6", weight:0.5, opacity:0.6 },
+    onEachFeature: (f, layer) => layer.bindTooltip(`Sea level +${ft} ft inundation`, { sticky:true }),
+  });
+}
+
+async function getSLRData(ft) {
+  if (!slrCache[ft]) {
+    const r = await fetch(`slr_${ft}ft.geojson`);
+    if (!r.ok) throw new Error(`slr_${ft}ft.geojson not found`);
+    slrCache[ft] = await r.json();
+  }
+  return slrCache[ft];
+}
+
+async function toggleFlood(on) {
+  if (!on) { if (floodLayer) { map.removeLayer(floodLayer); floodLayer = null; } document.getElementById("legend-flood").style.display = "none"; return; }
+  if (!floodLayer) {
+    try { const d = await fetch("flood_zones.geojson").then(r => r.json()); floodLayer = buildFloodLayer(d); }
+    catch(e) { console.error("Flood zones failed:", e); return; }
+  }
+  floodLayer.addTo(map);
+  document.getElementById("legend-flood").style.display = "block";
+}
+
+async function toggleEJ(on) {
+  if (!on) { if (ejLayer) { map.removeLayer(ejLayer); ejLayer = null; } document.getElementById("legend-ej").style.display = "none"; return; }
+  try {
+    const d = await fetch("ej_communities.geojson").then(r => r.json());
+    ejLayer = buildEJLayer(d);
+    ejLayer.addTo(map);
+    document.getElementById("legend-ej").style.display = "block";
+  } catch(e) { console.error("EJ failed:", e); }
+}
+
+async function toggleZone2(on) {
+  if (!on) {
+    if (zone2Layer) { map.removeLayer(zone2Layer); zone2Layer = null; }
+    document.getElementById("legend-zone2").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("zone2.geojson").then(r => r.json());
+    zone2Layer = L.geoJSON(d, {
+      style: { fillColor:"#0077b6", fillOpacity:0.35, color:"#023e8a", weight:1 },
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        l.bindTooltip(`${p.supplier||""}<br>${p.town||""} · ${p.acres} ac`);
+      }
+    }).addTo(map);
+    document.getElementById("legend-zone2").style.display = "block";
+  } catch(e) { console.error("Zone II layer failed:", e); }
+}
+
+function zoningColor(genUse) {
+  const c = { 1:"#f4d03f", 2:"#e67e22", 3:"#c0392b", 4:"#8e44ad" };
+  return c[genUse] || "#7f8c8d";
+}
+
+async function toggleZoning(on) {
+  if (!on) {
+    if (zoningLayer) { map.removeLayer(zoningLayer); zoningLayer = null; }
+    document.getElementById("legend-zoning").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("zoning.geojson").then(r => r.json());
+    zoningLayer = L.geoJSON(d, {
+      style: f => ({
+        fillColor: zoningColor(f.properties.gen_use),
+        fillOpacity: 0.45, color:"#555", weight: 0.5,
+      }),
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        l.bindTooltip(`${p.gen_label||""}<br>${p.prim_use||""} · ${p.acres} ac`);
+      }
+    }).addTo(map);
+    document.getElementById("legend-zoning").style.display = "block";
+  } catch(e) { console.error("Zoning layer failed:", e); }
+}
+
+async function toggleEelgrass(on) {
+  if (!on) {
+    if (eelgrassLayer) { map.removeLayer(eelgrassLayer); eelgrassLayer = null; }
+    document.getElementById("legend-eelgrass").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("eelgrass.geojson").then(r => r.json());
+    eelgrassLayer = L.geoJSON(d, {
+      style: { fillColor:"#558b2f", fillOpacity:0.7, color:"#33691e", weight:0.8 },
+      onEachFeature: (f, l) => l.bindTooltip(`Eel grass · ${f.properties.acres} ac`)
+    }).addTo(map);
+    document.getElementById("legend-eelgrass").style.display = "block";
+  } catch(e) { console.error("Eel grass layer failed:", e); }
+}
+
+async function toggleNS(on) {
+  if (!on) {
+    if (nsLayer) { map.removeLayer(nsLayer); nsLayer = null; }
+    document.getElementById("legend-ns").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("national_seashore.geojson").then(r => r.json());
+    nsLayer = L.geoJSON(d, {
+      style: { fillColor:"#f9a825", fillOpacity:0.12, color:"#f9a825", weight:2.5, dashArray:"8 5" },
+      onEachFeature: (f, l) => l.bindTooltip(`Cape Cod National Seashore · ${f.properties.acres} ac`)
+    }).addTo(map);
+    document.getElementById("legend-ns").style.display = "block";
+  } catch(e) { console.error("National Seashore layer failed:", e); }
+}
+
+function pondColor(code) {
+  return code === "O" ? "#1565c0" : code === "M" ? "#00838f" : "#bf360c";
+}
+
+async function togglePonds(on) {
+  if (!on) {
+    if (pondsLayer) { map.removeLayer(pondsLayer); pondsLayer = null; }
+    document.getElementById("legend-ponds").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("ponds.geojson").then(r => r.json());
+    pondsLayer = L.geoJSON(d, {
+      style: f => ({ fillColor: pondColor(f.properties.trophic_code), fillOpacity: 0.75, color: "#111", weight: 0.8 }),
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        l.bindTooltip(`${p.name||"Pond"}<br>${p.trophic_status} · ${p.acres} ac`);
+      }
+    }).addTo(map);
+    document.getElementById("legend-ponds").style.display = "block";
+  } catch(e) { console.error("Ponds layer failed:", e); }
+}
+
+async function toggleWetlands(on) {
+  if (!on) {
+    if (wetlandsLayer) { map.removeLayer(wetlandsLayer); wetlandsLayer = null; }
+    document.getElementById("legend-wetlands").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("wetlands.geojson").then(r => r.json());
+    wetlandsLayer = L.geoJSON(d, {
+      style: { fillColor:"#2e7d32", fillOpacity:0.5, color:"#1b5e20", weight:0.5 },
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        l.bindTooltip(`${p.type||"Wetland"}<br>${p.acres} ac`);
+      }
+    }).addTo(map);
+    document.getElementById("legend-wetlands").style.display = "block";
+  } catch(e) { console.error("Wetlands layer failed:", e); }
+}
+
+async function toggleACEC(on) {
+  if (!on) {
+    if (acecLayer) { map.removeLayer(acecLayer); acecLayer = null; }
+    document.getElementById("legend-acec").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("acec.geojson").then(r => r.json());
+    acecLayer = L.geoJSON(d, {
+      style: { fillColor:"#d4a017", fillOpacity:0.35, color:"#9a7000", weight:1.5 },
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        l.bindTooltip(`${p.name||"ACEC"}<br>${p.admin_by||""} · ${p.acres} ac<br>Designated ${p.des_date||""}`);
+      }
+    }).addTo(map);
+    document.getElementById("legend-acec").style.display = "block";
+  } catch(e) { console.error("ACEC layer failed:", e); }
+}
+
+async function toggleBogs(on) {
+  if (!on) {
+    if (bogsLayer) { map.removeLayer(bogsLayer); bogsLayer = null; }
+    document.getElementById("legend-bogs").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("cranberry_bogs.geojson").then(r => r.json());
+    bogsLayer = L.geoJSON(d, {
+      style: { fillColor:"#7b1d1d", fillOpacity:0.6, color:"#4a0e0e", weight:1 },
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        l.bindTooltip(`${p.name||"Cranberry Bog"}<br>${p.town||""} · ${p.acres} ac`);
+      }
+    }).addTo(map);
+    document.getElementById("legend-bogs").style.display = "block";
+  } catch(e) { console.error("Bogs layer failed:", e); }
+}
+
+async function toggleGW(on) {
+  if (!on) {
+    if (gwLayer) { map.removeLayer(gwLayer); gwLayer = null; }
+    document.getElementById("legend-gw").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("groundwater_depth.geojson").then(r => r.json());
+    gwLayer = L.geoJSON(d, {
+      style: { fillColor:"#00b4d8", fillOpacity:0.35, color:"#0077b6", weight:0.5 },
+      onEachFeature: (f, l) => l.bindTooltip("Groundwater depth < 20 ft")
+    }).addTo(map);
+    document.getElementById("legend-gw").style.display = "block";
+  } catch(e) { console.error("Groundwater layer failed:", e); }
+}
+
+function openSpaceColor(ownerType) {
+  const c = { F:"#1b5e20", S:"#388e3c", C:"#66bb6a", M:"#66bb6a", L:"#1a759f" };
+  return c[ownerType] || "#74c69d";
+}
+
+async function toggleOpenSpace(on) {
+  if (!on) {
+    if (openSpaceLayer) { map.removeLayer(openSpaceLayer); openSpaceLayer = null; }
+    document.getElementById("legend-openspace").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("open_space.geojson").then(r => r.json());
+    openSpaceLayer = L.geoJSON(d, {
+      style: f => ({
+        fillColor: openSpaceColor(f.properties.owner_type),
+        fillOpacity: 0.45, color: "#2d6a4f", weight: 0.5,
+      }),
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        l.bindTooltip(`${p.name||"Open Space"}<br>${p.owner_label||""} · ${p.acres} ac`);
+      }
+    }).addTo(map);
+    document.getElementById("legend-openspace").style.display = "block";
+  } catch(e) { console.error("Open space layer failed:", e); }
+}
+
+function buildSewerLayer(areas, phasing) {
+  const phaseColor = y => y <= 2030 ? "#4da36a" : y <= 2033 ? "#74c28b" : "#a8dbb7";
+  const layers = [];
+  if (areas.features.length) {
+    layers.push(L.geoJSON(areas, {
+      style: { fillColor:"#1a6b3c", fillOpacity:0.55, color:"#0f4226", weight:1 },
+      onEachFeature: (f,l) => l.bindTooltip(`Sewered: ${f.properties.town||""}`)
+    }));
+  }
+  if (phasing.features.length) {
+    layers.push(L.geoJSON(phasing, {
+      style: f => ({ fillColor:phaseColor(f.properties.phase_year), fillOpacity:0.45, color:"#2d7a4f", weight:0.8 }),
+      onEachFeature: (f,l) => {
+        const p = f.properties;
+        l.bindTooltip(`${p.town||""} — Phase ${p.phase_year||"?"}<br>${p.sewershed||""}`);
+      }
+    }));
+  }
+  return L.layerGroup(layers);
+}
+
+async function toggleSewer(on) {
+  if (!on) {
+    if (sewerLayer)  { map.removeLayer(sewerLayer);  sewerLayer  = null; }
+    if (title5Layer) { map.removeLayer(title5Layer); title5Layer = null; }
+    document.getElementById("legend-sewer").style.display = "none";
+    return;
+  }
+  try {
+    const [areas, phasing, t5] = await Promise.all([
+      fetch("sewer_areas.geojson").then(r => r.json()),
+      fetch("sewer_phasing.geojson").then(r => r.json()),
+      fetch("title5.geojson").then(r => r.json()),
+    ]);
+    sewerLayer = buildSewerLayer(areas, phasing);
+    sewerLayer.addTo(map);
+    title5Layer = L.geoJSON(t5, {
+      pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+        radius:5, fillColor:"#e67e22", color:"#c0392b", weight:1, fillOpacity:0.8
+      }),
+      onEachFeature: (f,l) => l.bindTooltip(f.properties.category||"Title 5 system")
+    }).addTo(map);
+    document.getElementById("legend-sewer").style.display = "block";
+  } catch(e) { console.error("Sewer layer failed:", e); }
+}
+
+function surgeColor(cat) {
+  return { 1:"#ffd700", 2:"#ff8c00", 3:"#ff4500", 4:"#8b0000" }[cat] || "#888";
+}
+
+async function toggleSurge(on) {
+  if (!on) {
+    if (surgeLayer) { map.removeLayer(surgeLayer); surgeLayer = null; }
+    document.getElementById("legend-surge").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("storm_surge.geojson").then(r => r.json());
+    surgeLayer = L.geoJSON(d, {
+      style: f => ({
+        fillColor: surgeColor(f.properties.hurr_cat),
+        fillOpacity: 0.35, color: surgeColor(f.properties.hurr_cat), weight: 0.5,
+      }),
+      onEachFeature: (f, l) => l.bindTooltip(`Hurricane Category ${f.properties.hurr_cat} surge zone`, { sticky:true })
+    }).addTo(map);
+    document.getElementById("legend-surge").style.display = "block";
+  } catch(e) { console.error("Storm surge layer failed:", e); }
+}
+
+
+function contaminatedColor(status) {
+  if (!status) return "#ffd700";
+  const s = status.toUpperCase();
+  if (s.startsWith("TIER1") || s === "TIER1D") return "#dc143c";
+  if (s.startsWith("TIER2") || s === "TIERII") return "#ff8c00";
+  return "#ffd700";
+}
+
+async function toggleContaminated(on) {
+  if (!on) {
+    if (contaminatedLayer) { map.removeLayer(contaminatedLayer); contaminatedLayer = null; }
+    document.getElementById("legend-contaminated").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("contaminated_sites.geojson").then(r => r.json());
+    contaminatedLayer = L.geoJSON(d, {
+      pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+        radius:5, fillColor: contaminatedColor(f.properties.status),
+        color:"#333", weight:1, fillOpacity:0.85,
+      }),
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        l.bindTooltip(`<b>${p.name||"Site"}</b><br>${p.address||""}<br>${p.town||""}<br>Status: ${p.status||"Unknown"}`);
+      }
+    }).addTo(map);
+    document.getElementById("legend-contaminated").style.display = "block";
+  } catch(e) { console.error("Contaminated sites layer failed:", e); }
+}
+
+async function toggleLandfills(on) {
+  if (!on) {
+    if (landfillsLayer) { map.removeLayer(landfillsLayer); landfillsLayer = null; }
+    document.getElementById("legend-landfills").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("landfills.geojson").then(r => r.json());
+    landfillsLayer = L.geoJSON(d, {
+      style: f => {
+        const s = (f.properties.status || "").toLowerCase();
+        const active = s.includes("active") || s.includes("open");
+        return { fillColor: active ? "#e67e22" : "#7f8c8d", fillOpacity: 0.6,
+                 color: active ? "#c0392b" : "#555", weight: 1.2 };
+      },
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        l.bindTooltip(`<b>${p.name||"Landfill"}</b><br>${p.town||""}<br>Status: ${p.status||"Unknown"}<br>${p.acres ? p.acres+" acres" : ""}`, { sticky:true });
+      }
+    }).addTo(map);
+    document.getElementById("legend-landfills").style.display = "block";
+  } catch(e) { console.error("Landfills layer failed:", e); }
+}
+
+async function toggleBiomap(on) {
+  if (!on) {
+    if (biomapLayer) { map.removeLayer(biomapLayer); biomapLayer = null; }
+    document.getElementById("legend-biomap").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("biomap.geojson").then(r => r.json());
+    biomapLayer = L.geoJSON(d, {
+      style: { fillColor:"#1b7837", fillOpacity:0.35, color:"#1b7837", weight:0.8 },
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        l.bindTooltip(`BioMap2 Core Habitat${p.acres ? " — " + p.acres + " acres" : ""}`, { sticky:true });
+      }
+    }).addTo(map);
+    document.getElementById("legend-biomap").style.display = "block";
+  } catch(e) { console.error("BioMap layer failed:", e); }
+}
+
+async function toggleNHESP(on) {
+  if (!on) {
+    if (nhespLayer) { map.removeLayer(nhespLayer); nhespLayer = null; }
+    document.getElementById("legend-nhesp").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("nhesp.geojson").then(r => r.json());
+    nhespLayer = L.geoJSON(d, {
+      style: { fillColor:"#7b2d8b", fillOpacity:0.35, color:"#5c1a6b", weight:0.8 },
+      onEachFeature: (f, l) => l.bindTooltip("Priority habitat of rare species", { sticky:true })
+    }).addTo(map);
+    document.getElementById("legend-nhesp").style.display = "block";
+  } catch(e) { console.error("NHESP layer failed:", e); }
+}
+
+async function toggleFarms(on) {
+  if (!on) {
+    if (farmsLayer) { map.removeLayer(farmsLayer); farmsLayer = null; }
+    document.getElementById("legend-farms").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("farms.geojson").then(r => r.json());
+    farmsLayer = L.geoJSON(d, {
+      style: { fillColor: "#8db600", fillOpacity: 0.5, color: "#5a7a00", weight: 1 },
+      onEachFeature: (f, l) => {
+        const a = f.properties.acres;
+        l.bindTooltip(`Farmland${a ? " — " + a + " acres" : ""}`, { sticky: true });
+      }
+    }).addTo(map);
+    document.getElementById("legend-farms").style.display = "block";
+  } catch(e) { console.error("Farms layer failed:", e); }
+}
+
+async function toggleVernal(on) {
+  if (!on) {
+    if (vernalLayer) { map.removeLayer(vernalLayer); vernalLayer = null; }
+    document.getElementById("legend-vernal").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("vernal_pools.geojson").then(r => r.json());
+    vernalLayer = L.geoJSON(d, {
+      pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+        radius: 4, fillColor: "#00b4d8", color: "#0077b6", weight: 1, fillOpacity: 0.85,
+      }),
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        l.bindTooltip(`Certified Vernal Pool ${p.cvp_num || ""}${p.criteria ? "<br>" + p.criteria : ""}`, { sticky: true });
+      }
+    }).addTo(map);
+    document.getElementById("legend-vernal").style.display = "block";
+  } catch(e) { console.error("Vernal pools layer failed:", e); }
+}
+
+function totColor(years) {
+  if (years == null) return "#aaa";
+  if (years <= 2)  return "#d73027";
+  if (years <= 5)  return "#fc8d59";
+  if (years <= 10) return "#fee08b";
+  if (years <= 25) return "#91bfdb";
+  return "#4575b4";
+}
+
+async function toggleTOT(on) {
+  if (!on) {
+    if (totLayer) { map.removeLayer(totLayer); totLayer = null; }
+    document.getElementById("legend-tot").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("groundwater_tot.geojson").then(r => r.json());
+    totLayer = L.geoJSON(d, {
+      style: f => ({
+        fillColor: totColor(f.properties.tot_years),
+        fillOpacity: 0.55, color: "#333", weight: 0.4
+      }),
+      onEachFeature: (f, l) => {
+        const y = f.properties.tot_years;
+        l.bindTooltip(`Groundwater travel time: ${y != null ? y + " yr" : "unknown"}`, { sticky:true });
+      }
+    }).addTo(map);
+    document.getElementById("legend-tot").style.display = "block";
+  } catch(e) { console.error("TOT layer failed:", e); }
+}
+
+function nitrateColor(v) {
+  if (v == null) return "#aaa";
+  if (v > 5)  return "#d73027";
+  if (v > 2)  return "#fc8d59";
+  return "#4575b4";
+}
+
+async function toggleNitrate(on) {
+  if (!on) {
+    if (nitrateLayer) { map.removeLayer(nitrateLayer); nitrateLayer = null; }
+    document.getElementById("legend-nitrate").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("nitrate_wells.geojson").then(r => r.json());
+    nitrateLayer = L.geoJSON(d, {
+      filter: f => f.properties.nitrate != null && f.properties.nitrate > 0,
+      pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+        radius: 6, fillColor: nitrateColor(f.properties.nitrate),
+        color: "#333", weight: 1, fillOpacity: 0.9,
+      }),
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        const val = p.nitrate != null ? p.nitrate + " mg/L" : "No data";
+        l.bindTooltip(`<b>${p.site_name || p.pws_name || "Well"}</b><br>${p.town || ""}<br>Nitrate: ${val}`, { sticky: true });
+      }
+    }).addTo(map);
+    document.getElementById("legend-nitrate").style.display = "block";
+  } catch(e) { console.error("Nitrate wells layer failed:", e); }
+}
+
+async function toggleNitrogen(on) {
+  if (!on) {
+    if (nitrogenLayer) { map.removeLayer(nitrogenLayer); nitrogenLayer = null; }
+    document.getElementById("legend-nitrogen").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("nitrogen_monitoring.geojson").then(r => r.json());
+    nitrogenLayer = L.geoJSON(d, {
+      pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+        radius:4, fillColor:"#ff6b35", color:"#c0392b", weight:1, fillOpacity:0.8,
+      }),
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        const lines = [p.embayment||"Embayment", `Station: ${p.station||""}`, p.quality ? `Quality: ${p.quality}` : ""].filter(Boolean);
+        l.bindTooltip(lines.join("<br>"));
+      }
+    }).addTo(map);
+    document.getElementById("legend-nitrogen").style.display = "block";
+  } catch(e) { console.error("Nitrogen monitoring layer failed:", e); }
+}
+
+async function toggleFertDCPC(on) {
+  if (!on) {
+    if (dcpcFertLayer) { map.removeLayer(dcpcFertLayer); dcpcFertLayer = null; }
+    document.getElementById("legend-dcpc-fert").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("fertilizer_dcpc.geojson").then(r => r.json());
+    dcpcFertLayer = L.geoJSON(d, {
+      style: { fillColor:"#c8b400", fillOpacity:0.25, color:"#a09000", weight:2, dashArray:"5 3" },
+      onEachFeature: (f, l) => l.bindTooltip("Fertilizer Management DCPC")
+    }).addTo(map);
+    document.getElementById("legend-dcpc-fert").style.display = "block";
+  } catch(e) { console.error("Fertilizer DCPC layer failed:", e); }
+}
+
+async function toggleAllDCPC(on) {
+  if (!on) {
+    if (dcpcAllLayer) { map.removeLayer(dcpcAllLayer); dcpcAllLayer = null; }
+    document.getElementById("legend-dcpc-all").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("all_dcpc.geojson").then(r => r.json());
+    dcpcAllLayer = L.geoJSON(d, {
+      style: { fillColor:"#b8860b", fillOpacity:0.2, color:"#8b6508", weight:1.5, dashArray:"4 3" },
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        l.bindTooltip(`${p.dcpc_name||"DCPC"}<br>${p.acres} ac`);
+      }
+    }).addTo(map);
+    document.getElementById("legend-dcpc-all").style.display = "block";
+  } catch(e) { console.error("All DCPCs layer failed:", e); }
+}
+
+async function toggleGIZ(on) {
+  if (!on) {
+    if (gizLayer) { map.removeLayer(gizLayer); gizLayer = null; }
+    document.getElementById("legend-giz").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("growth_zones.geojson").then(r => r.json());
+    gizLayer = L.geoJSON(d, {
+      style: { fillColor: "#e74c3c", fillOpacity: 0.25, color: "#c0392b", weight: 1.5, dashArray: "5 4" },
+      onEachFeature: (f, l) => l.bindTooltip("Growth Incentive Zone", { sticky: true })
+    }).addTo(map);
+    document.getElementById("legend-giz").style.display = "block";
+  } catch(e) { console.error("Growth zones layer failed:", e); }
+}
+
+async function toggleHistoric(on) {
+  if (!on) {
+    if (historicLayer) { map.removeLayer(historicLayer); historicLayer = null; }
+    document.getElementById("legend-historic").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("historic_districts.geojson").then(r => r.json());
+    historicLayer = L.geoJSON(d, {
+      style: { fillColor: "#c9a84c", fillOpacity: 0.35, color: "#8b6914", weight: 1 },
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        const lines = [p.name || "Historic area", p.town || "", p.built ? "Built: " + p.built : "", p.arch_style || ""].filter(Boolean);
+        l.bindTooltip(lines.join("<br>"), { sticky: true });
+      }
+    }).addTo(map);
+    document.getElementById("legend-historic").style.display = "block";
+  } catch(e) { console.error("Historic districts layer failed:", e); }
+}
+
+
+async function toggleFreshwaterLenses(on) {
+  if (!on) {
+    if (freshwaterLensesLayer) { map.removeLayer(freshwaterLensesLayer); freshwaterLensesLayer = null; }
+    document.getElementById("legend-lenses").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("freshwater_lenses.geojson").then(r => r.json());
+    freshwaterLensesLayer = L.geoJSON(d, {
+      style: { fillColor:"#023e8a", fillOpacity:0.2, color:"#023e8a", weight:2, dashArray:"6 4" },
+      onEachFeature: (f, l) => l.bindTooltip(`${f.properties.name || "Freshwater Lens"}`, { sticky:true })
+    }).addTo(map);
+    document.getElementById("legend-lenses").style.display = "block";
+  } catch(e) { console.error("Freshwater lenses layer failed:", e); }
+}
+
+async function toggleTidalWetlands(on) {
+  if (!on) {
+    if (tidalWetlandsLayer) { map.removeLayer(tidalWetlandsLayer); tidalWetlandsLayer = null; }
+    document.getElementById("legend-tidal").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("tidal_wetlands.geojson").then(r => r.json());
+    tidalWetlandsLayer = L.geoJSON(d, {
+      style: { fillColor:"#40916c", fillOpacity:0.5, color:"#1b4332", weight:1 },
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        const lines = [p.name || "Tidal Restoration Site", p.town || "", p.status || "", p.project_type || ""].filter(Boolean);
+        l.bindTooltip(lines.join("<br>"), { sticky:true });
+      }
+    }).addTo(map);
+    document.getElementById("legend-tidal").style.display = "block";
+  } catch(e) { console.error("Tidal wetlands layer failed:", e); }
+}
+
+function ompColor(zoneType) {
+  return { prohibited:"#8b0000", exclusionary:"#d4420a", provisional:"#e8a838" }[zoneType] || "#888";
+}
+
+async function toggleOMPZones(on) {
+  if (!on) {
+    if (ompZonesLayer) { map.removeLayer(ompZonesLayer); ompZonesLayer = null; }
+    document.getElementById("legend-omp").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("omp_zones.geojson").then(r => r.json());
+    ompZonesLayer = L.geoJSON(d, {
+      style: f => ({
+        fillColor: ompColor(f.properties.zone_type),
+        fillOpacity: 0.3, color: ompColor(f.properties.zone_type), weight: 1.5,
+      }),
+      onEachFeature: (f, l) => {
+        const z = f.properties.zone_type;
+        l.bindTooltip(`OMP ${z ? z.charAt(0).toUpperCase() + z.slice(1) : ""} Area`, { sticky:true });
+      }
+    }).addTo(map);
+    document.getElementById("legend-omp").style.display = "block";
+  } catch(e) { console.error("OMP zones layer failed:", e); }
+}
+
+async function toggleRestoration(on) {
+  if (!on) {
+    if (restorationLayer) { map.removeLayer(restorationLayer); restorationLayer = null; }
+    document.getElementById("legend-restoration").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("restoration_projects.geojson").then(r => r.json());
+    restorationLayer = L.geoJSON(d, {
+      pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+        radius: 5,
+        fillColor: f.properties.ev_rank === "High" ? "#2d9d78" : "#74c69d",
+        color: "#1b4332", weight: 1, fillOpacity: 0.9,
+      }),
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        const lines = [p.name || "Restoration Project", p.town || "", p.status || "", p.project_type || "", p.ev_rank ? "EV Rank: " + p.ev_rank : ""].filter(Boolean);
+        l.bindTooltip(lines.join("<br>"), { sticky:true });
+      }
+    }).addTo(map);
+    document.getElementById("legend-restoration").style.display = "block";
+  } catch(e) { console.error("Restoration projects layer failed:", e); }
+}
+
+function driColor(outcome) {
+  if (!outcome) return "#f39c12";
+  const o = outcome.toUpperCase();
+  if (o.includes("DENIED")) return "#c0392b";
+  if (o.includes("APPROV")) return "#27ae60";
+  return "#f39c12";
+}
+
+async function toggleDRI(on) {
+  if (!on) {
+    if (driLayer) { map.removeLayer(driLayer); driLayer = null; }
+    document.getElementById("legend-dri").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("dri_decisions.geojson").then(r => r.json());
+    driLayer = L.geoJSON(d, {
+      pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+        radius: 5, fillColor: driColor(f.properties.outcome),
+        color: "#111", weight: 1, fillOpacity: 0.85,
+      }),
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        const lines = [`<b>${p.name || "DRI Decision"}</b>`, p.town || "", p.decision_type || "", p.outcome || "", p.decade || ""].filter(Boolean);
+        l.bindTooltip(lines.join("<br>"), { sticky:true });
+      }
+    }).addTo(map);
+    document.getElementById("legend-dri").style.display = "block";
+  } catch(e) { console.error("DRI decisions layer failed:", e); }
+}
+
+function swqsColor(cls) {
+  if (!cls) return "#7f8c8d";
+  const c = cls.toUpperCase();
+  if (c === "A" || c === "AA") return "#0a5eb0";
+  if (c === "SA") return "#006d5b";
+  if (c === "B" || c === "SB") return "#2980b9";
+  return "#7f8c8d";
+}
+
+async function toggleSWQS(on) {
+  if (!on) {
+    if (swqsLayer) { map.removeLayer(swqsLayer); swqsLayer = null; }
+    document.getElementById("legend-swqs").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("swqs.geojson").then(r => r.json());
+    swqsLayer = L.geoJSON(d, {
+      style: f => ({ color: swqsColor(f.properties.class), weight: 2.5, opacity: 0.75 }),
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        const lines = [p.waters || "Water body", `Class ${p.class || "?"}`, p.qualifier || "", p.basin || ""].filter(Boolean);
+        l.bindTooltip(lines.join("<br>"), { sticky:true });
+      }
+    }).addTo(map);
+    document.getElementById("legend-swqs").style.display = "block";
+  } catch(e) { console.error("SWQS layer failed:", e); }
+}
+
+async function toggleMarineBeaches(on) {
+  if (!on) {
+    if (marineBeachesLayer) { map.removeLayer(marineBeachesLayer); marineBeachesLayer = null; }
+    document.getElementById("legend-beaches").style.display = "none";
+    return;
+  }
+  try {
+    const d = await fetch("marine_beaches.geojson").then(r => r.json());
+    marineBeachesLayer = L.geoJSON(d, {
+      style: f => ({
+        color: f.properties.type === "Public" ? "#00b4d8" : "#48cae4",
+        weight: 3, opacity: 0.85,
+      }),
+      onEachFeature: (f, l) => {
+        const p = f.properties;
+        l.bindTooltip(`${p.name || "Beach"}<br>${p.town || ""}<br>${p.type || ""} · ${p.miles ? p.miles.toFixed(2) + " mi" : ""}`, { sticky:true });
+      }
+    }).addTo(map);
+    document.getElementById("legend-beaches").style.display = "block";
+  } catch(e) { console.error("Marine beaches layer failed:", e); }
+}
+
+async function updateSLR() {
+  if (slrLayer) { map.removeLayer(slrLayer); slrLayer = null; }
+  if (!document.getElementById("layer-slr").checked) return;
+  try {
+    const d = await getSLRData(slrLevel);
+    slrLayer = buildSLRLayer(d, slrLevel);
+    slrLayer.addTo(map);
+  } catch(e) { console.error("SLR failed:", e); }
+}
+
+// ─── Data loading ──────────────────────────────────────────────────────────
+async function loadData() {
+  try {
+    const [tracts, towns] = await Promise.all([
+      fetch("tracts.geojson").then(r => r.json()),
+      fetch("towns.geojson").then(r => r.json()),
+    ]);
+    tractData = tracts;
+    townData  = towns;
+    renderCurrentLayer();
+  } catch(e) {
+    console.error("Failed to load census GeoJSON:", e);
+    const info = L.control({ position: "topleft" });
+    info.onAdd = () => {
+      const d = L.DomUtil.create("div");
+      d.style.cssText = "background:#c0392b;color:#fff;padding:10px 14px;border-radius:4px;font-size:0.85rem;";
+      d.textContent = "⚠ Run fetch_census.py first.";
+      return d;
+    };
+    info.addTo(map);
+  }
+}
+
+// ─── UI wiring ─────────────────────────────────────────────────────────────
+
+// Metric buttons (grouped)
+const metricList = document.getElementById("metric-list");
+let lastGroup = null;
+METRICS.forEach((m, i) => {
+  if (m.group !== lastGroup) {
+    const lbl = document.createElement("div");
+    lbl.className = "metric-group-label";
+    lbl.textContent = m.group;
+    metricList.appendChild(lbl);
+    lastGroup = m.group;
+  }
+  const btn = document.createElement("button");
+  btn.className = "metric-btn" + (i === 0 ? " active" : "");
+  btn.textContent = m.label;
+  btn.addEventListener("click", () => {
+    if (btn.classList.contains("active") && censusVisible) {
+      censusVisible = false;
+      document.getElementById("layer-census").checked = false;
+      document.getElementById("census-body").style.display = "none";
+      renderCurrentLayer();
+      return;
+    }
+    document.querySelectorAll(".metric-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentMetric = m;
+    if (!censusVisible) {
+      censusVisible = true;
+      document.getElementById("layer-census").checked = true;
+      document.getElementById("census-body").style.display = "block";
+    }
+    renderCurrentLayer();
+  });
+  metricList.appendChild(btn);
+});
+
+// Group collapse toggles
+document.querySelectorAll(".layer-group-hdr").forEach(hdr => {
+  hdr.addEventListener("click", () => {
+    hdr.classList.toggle("collapsed");
+    hdr.nextElementSibling.classList.toggle("collapsed");
+  });
+  // Start collapsed
+  hdr.classList.add("collapsed");
+  hdr.nextElementSibling.classList.add("collapsed");
+});
+
+// Geography toggle
+document.querySelectorAll(".level-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".level-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentLevel = btn.dataset.level;
+    renderCurrentLayer();
+  });
+});
+
+// Census layer toggle
+document.getElementById("layer-census").addEventListener("change", e => {
+  censusVisible = e.target.checked;
+  document.getElementById("census-body").style.display = e.target.checked ? "block" : "none";
+  renderCurrentLayer();
+});
+
+// Overlay toggles
+document.getElementById("layer-elevation").addEventListener("change", e => toggleElevation(e.target.checked));
+document.getElementById("layer-contours").addEventListener("change", e => toggleContours(e.target.checked));
+document.getElementById("elev-slider").addEventListener("input", e => {
+  document.getElementById("elev-opacity-val").textContent = e.target.value;
+  if (elevationLayer) elevationLayer.setOpacity(parseInt(e.target.value) / 100);
+});
+document.getElementById("layer-flood").addEventListener("change", e => toggleFlood(e.target.checked));
+document.getElementById("layer-ej").addEventListener("change",    e => toggleEJ(e.target.checked));
+document.getElementById("layer-eelgrass").addEventListener("change", e => toggleEelgrass(e.target.checked));
+document.getElementById("layer-ns").addEventListener("change",       e => toggleNS(e.target.checked));
+document.getElementById("layer-ponds").addEventListener("change",    e => togglePonds(e.target.checked));
+document.getElementById("layer-wetlands").addEventListener("change", e => toggleWetlands(e.target.checked));
+document.getElementById("layer-acec").addEventListener("change",     e => toggleACEC(e.target.checked));
+document.getElementById("layer-biomap").addEventListener("change",   e => toggleBiomap(e.target.checked));
+document.getElementById("layer-nhesp").addEventListener("change",    e => toggleNHESP(e.target.checked));
+document.getElementById("layer-vernal").addEventListener("change",   e => toggleVernal(e.target.checked));
+document.getElementById("layer-farms").addEventListener("change",    e => toggleFarms(e.target.checked));
+document.getElementById("layer-tot").addEventListener("change",      e => toggleTOT(e.target.checked));
+document.getElementById("layer-bogs").addEventListener("change",     e => toggleBogs(e.target.checked));
+document.getElementById("layer-gw").addEventListener("change",       e => toggleGW(e.target.checked));
+document.getElementById("layer-zone2").addEventListener("change",    e => toggleZone2(e.target.checked));
+document.getElementById("layer-zoning").addEventListener("change",   e => toggleZoning(e.target.checked));
+document.getElementById("layer-openspace").addEventListener("change", e => toggleOpenSpace(e.target.checked));
+document.getElementById("layer-sewer").addEventListener("change",    e => toggleSewer(e.target.checked));
+document.getElementById("layer-surge").addEventListener("change",       e => toggleSurge(e.target.checked));
+document.getElementById("layer-contaminated").addEventListener("change", e => toggleContaminated(e.target.checked));
+document.getElementById("layer-landfills").addEventListener("change",    e => toggleLandfills(e.target.checked));
+document.getElementById("layer-nitrate").addEventListener("change",     e => toggleNitrate(e.target.checked));
+document.getElementById("layer-nitrogen").addEventListener("change",     e => toggleNitrogen(e.target.checked));
+document.getElementById("layer-dcpc-fert").addEventListener("change", e => toggleFertDCPC(e.target.checked));
+document.getElementById("layer-dcpc-all").addEventListener("change",  e => toggleAllDCPC(e.target.checked));
+document.getElementById("layer-giz").addEventListener("change",       e => toggleGIZ(e.target.checked));
+document.getElementById("layer-historic").addEventListener("change",     e => toggleHistoric(e.target.checked));
+document.getElementById("layer-lenses").addEventListener("change",      e => toggleFreshwaterLenses(e.target.checked));
+document.getElementById("layer-tidal").addEventListener("change",       e => toggleTidalWetlands(e.target.checked));
+document.getElementById("layer-omp").addEventListener("change",         e => toggleOMPZones(e.target.checked));
+document.getElementById("layer-restoration").addEventListener("change", e => toggleRestoration(e.target.checked));
+document.getElementById("layer-dri").addEventListener("change",         e => toggleDRI(e.target.checked));
+document.getElementById("layer-swqs").addEventListener("change",        e => toggleSWQS(e.target.checked));
+document.getElementById("layer-beaches").addEventListener("change",     e => toggleMarineBeaches(e.target.checked));
+document.getElementById("layer-slr").addEventListener("change",   e => {
+  document.getElementById("slr-controls").style.display = e.target.checked ? "block" : "none";
+  updateSLR();
+});
+document.getElementById("slr-slider").addEventListener("input", e => {
+  slrLevel = parseInt(e.target.value);
+  document.getElementById("slr-level-val").textContent = slrLevel;
+  updateSLR();
+});
+
+// Mobile sidebar
+const sidebar = document.getElementById("sidebar");
+const overlay = document.getElementById("sidebar-overlay");
+document.getElementById("menu-toggle").addEventListener("click", () => {
+  sidebar.classList.toggle("open");
+  overlay.classList.toggle("visible");
+});
+overlay.addEventListener("click", () => {
+  sidebar.classList.remove("open");
+  overlay.classList.remove("visible");
+});
+
+// ─── Search ────────────────────────────────────────────────────────────────
+(function() {
+  const input    = document.getElementById("search-input");
+  const results  = document.getElementById("search-results");
+  const clearBtn = document.getElementById("search-clear");
+  let searchMarker = null;
+  let debounceTimer = null;
+
+  function clearSearch() {
+    input.value = "";
+    results.style.display = "none";
+    clearBtn.style.display = "none";
+    if (searchMarker) { map.removeLayer(searchMarker); searchMarker = null; }
+  }
+
+  function flyTo(lat, lon, displayName) {
+    results.style.display = "none";
+    if (searchMarker) map.removeLayer(searchMarker);
+    searchMarker = L.marker([lat, lon])
+      .addTo(map)
+      .bindPopup(`<div style="font-size:0.78rem;max-width:220px">${displayName}</div>`, { className: "census-pop" })
+      .openPopup();
+    map.flyTo([lat, lon], 14, { duration: 1 });
+  }
+
+  async function doSearch(q) {
+    if (q.length < 3) { results.style.display = "none"; return; }
+    const params = new URLSearchParams({
+      q, format: "json", limit: 6, countrycodes: "us",
+      viewbox: "-71.5,42.3,-69.8,41.3", bounded: 0,
+    });
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+        headers: { "Accept-Language": "en" }
+      });
+      const data = await res.json();
+      results.innerHTML = "";
+      if (!data.length) {
+        results.innerHTML = `<div class="search-no-results">No results found</div>`;
+      } else {
+        data.forEach(item => {
+          const div = document.createElement("div");
+          div.className = "search-result-item";
+          const label = item.display_name.replace(/, United States$/, "");
+          div.innerHTML = `${label}<br><span class="search-result-type">${item.type}</span>`;
+          div.addEventListener("click", () => {
+            input.value = label;
+            flyTo(parseFloat(item.lat), parseFloat(item.lon), label);
+          });
+          results.appendChild(div);
+        });
+      }
+      results.style.display = "block";
+    } catch(e) { /* network error — silently ignore */ }
+  }
+
+  input.addEventListener("input", () => {
+    clearBtn.style.display = input.value ? "block" : "none";
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => doSearch(input.value.trim()), 300);
+  });
+
+  input.addEventListener("keydown", e => {
+    if (e.key === "Escape") clearSearch();
+    if (e.key === "Enter") {
+      const first = results.querySelector(".search-result-item");
+      if (first) first.click();
+    }
+  });
+
+  clearBtn.addEventListener("click", clearSearch);
+
+  document.addEventListener("click", e => {
+    if (!e.target.closest("#search-wrap")) results.style.display = "none";
+  });
+})();
+
+// ─── Boot ──────────────────────────────────────────────────────────────────
+loadData();
+</script>
+</body>
+</html>
